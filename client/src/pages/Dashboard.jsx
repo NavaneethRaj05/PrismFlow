@@ -203,6 +203,7 @@ export default function Dashboard() {
   const [progressStep, setProgressStep] = useState(0);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedSecret, setCopiedSecret] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
 
   const { reviews, stats, pagination, loading, error, setPage, refresh } = useReviews({
     repo:     repoFilter,
@@ -599,10 +600,19 @@ export default function Dashboard() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Secret Key</label>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Secret Key</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSecret(!showSecret)}
+                      className="text-[10px] text-brand-400 hover:text-brand-300 transition-all font-semibold lowercase"
+                    >
+                      {showSecret ? 'hide' : 'show'}
+                    </button>
+                  </label>
                   <div className="flex gap-2">
                     <input
-                      type="text"
+                      type={showSecret ? 'text' : 'password'}
                       readOnly
                       value={webhookSecret}
                       className="input py-2 text-sm bg-black/30 font-mono text-slate-300 flex-1 select-all"

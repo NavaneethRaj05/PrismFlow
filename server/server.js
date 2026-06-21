@@ -46,6 +46,56 @@ app.use('/api/webhook', express.raw({ type: 'application/json' }));
 // ── JSON body for all other routes ───────────────────────────────────────────
 app.use(express.json());
 
+// ── Sanitization Middleware (removes sensitive usernames, repos, and names) ──
+function sanitizeResponse(val) {
+  try {
+    const plain = JSON.parse(JSON.stringify(val));
+    return doSanitize(plain);
+  } catch (err) {
+    return doSanitize(val);
+  }
+}
+
+function doSanitize(val) {
+  if (val === null || val === undefined) return val;
+  if (typeof val === 'string') {
+    return val
+      .replace(/NavaneethRaj05\/PrismFlow/gi, 'prismflow/core')
+      .replace(/NavaneethRaj05/gi, 'dev-user')
+      .replace(/Navaneeth/gi, 'dev-user')
+      .replace(/aksha/gi, 'anonymous-user')
+      .replace(/teamvortexnce\/prism/gi, 'prismflow/core')
+      .replace(/teamvortexnce/gi, 'prismflow-team')
+      .replace(/teamvortex/gi, 'prismflow-team');
+  }
+  if (Array.isArray(val)) {
+    return val.map(doSanitize);
+  }
+  if (typeof val === 'object') {
+    const copy = {};
+    for (const key in val) {
+      if (Object.prototype.hasOwnProperty.call(val, key)) {
+        copy[key] = doSanitize(val[key]);
+      }
+    }
+    return copy;
+  }
+  return val;
+}
+
+app.use((req, res, next) => {
+  const originalJson = res.json;
+  res.json = function (body) {
+    try {
+      const sanitized = sanitizeResponse(body);
+      return originalJson.call(this, sanitized);
+    } catch (err) {
+      return originalJson.call(this, body);
+    }
+  };
+  next();
+});
+
 // ── Mount routers ─────────────────────────────────────────────────────────────
 app.use('/api/webhook', webhookRouter);
 app.use('/api/reviews', reviewsRouter);
