@@ -96,6 +96,34 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── Database connection helper & middleware ───────────────────────────────────
+let cachedConnection = null;
+async function connectToDatabase() {
+  if (cachedConnection && mongoose.connection.readyState === 1) {
+    return cachedConnection;
+  }
+  console.log('📡 Connecting to MongoDB...');
+  cachedConnection = await mongoose.connect(process.env.MONGO_URI);
+  console.log('✅ MongoDB connected');
+  await seedDemoData();
+  return cachedConnection;
+}
+
+// Middleware to ensure DB connection is active before routes are processed
+app.use(async (req, res, next) => {
+  if (req.path === '/health') return next();
+  try {
+    await connectToDatabase();
+    next();
+  } catch (err) {
+    console.error('❌ Database connection error:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: `Database connection failed: ${err.message}. Please check your MONGO_URI and verify that access from anywhere (0.0.0.0/0) is allowed in your MongoDB Atlas network security settings.`
+    });
+  }
+});
+
 // ── Mount routers ─────────────────────────────────────────────────────────────
 app.use('/api/webhook', webhookRouter);
 app.use('/api/reviews', reviewsRouter);
@@ -110,22 +138,15 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ success: false, error: 'Internal server error' });
 });
 
-// ── Database + listen ─────────────────────────────────────────────────────────
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(async () => {
-    console.log('✅ MongoDB connected');
-    
-    // Seed demo reviews if collection is empty
-    await seedDemoData();
-
-    if (process.env.NODE_ENV !== 'test') {
+// ── Startup & listen ──────────────────────────────────────────────────────────
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  connectToDatabase()
+    .then(() => {
       app.listen(PORT, () => console.log(`🚀 Server listening on port ${PORT}`));
-    }
-  })
-  .catch((err) => {
-    console.error('❌ MongoDB connection error:', err.message);
-    process.exit(1);
-  });
+    })
+    .catch((err) => {
+      console.error('❌ MongoDB initial connection failed:', err.message);
+    });
+}
 
 export default app;
